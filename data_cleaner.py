@@ -31,29 +31,52 @@ date_std['Day_Count'] = count_column
 #label records that need to be dropped
 date_std['drop?'] = np.where(date_std['Day_Count'] > 96, 'Y', 'N')
 
-#update these drop? so that the daylight savings records are not dropped 
-dls = [
-    '03-11-07', '11-04-07',
-    '03-09-08', '11-02-08',
-    '03-08-09', '11-01-09',
-    '03-14-10', '11-07-10',
-    '03-13-11', '11-06-11',
-    '03-11-12', '11-04-12',
-    '03-10-13', '11-03-13',
-    '03-09-14', '11-02-14',
-    '03-08-15', '11-01-15',
-    '03-13-16', '11-06-16',
-    '03-12-17', '11-05-17',
-    '03-11-18', '11-04-18',
-    '03-10-19', '11-03-19',
-    '03-08-20', '11-01-20',
-    '03-14-21', '11-07-21',
-    '03-13-22', '11-06-22'
-]
-
-date_std.loc[date_std['Date'].isin(dls), 'drop?'] = 'N'
-
 # drop records with drop? value of N
 filtered_df = date_std[date_std['drop?'] != 'Y']
 
-filtered_df.to_csv('clean_power_data.csv', index=True)
+# make names uniform
+filtered_df["Fuel"] = filtered_df["Fuel"].replace(' Coal', 'Coal')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace(' Gas', 'Gas')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace(' Hydro', 'Hydro')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace(' Nuclear', 'Nuclear')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace(' Wnd', 'Wind')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace('Oth', 'Other')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace('Wnd', 'Wind')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace('Gas_CC', 'Gas')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace('Gas_GT', 'Gas')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace('Sun', 'Solar')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace('Gas-CC', 'Gas')
+filtered_df["Fuel"] = filtered_df["Fuel"].replace('WSL', 'Wind')
+
+# Specify the path for the weather data
+excel_file_path = 'data/Capstone_Weather_Data_Long_Format.xlsx'
+
+# Specify the sheet name
+sheet_name = 'Combined'
+
+# Use pandas to read the Excel file and create a DataFrame from a specific sheet
+df_weather = pd.read_excel(excel_file_path, sheet_name=sheet_name)
+
+# Conver the date fields to a common format
+df_weather['Date'] = pd.to_datetime(df_weather['Date'], format = '%m/%d/%y')
+
+# Assuming df is your DataFrame with a date column 'Date'
+filtered_df['Date'] = pd.to_datetime(filtered_df['Date'], errors='coerce')
+
+# Perform the join on the common date field
+merged_df = pd.merge(filtered_df, df_weather, on='Date')
+
+#Lets remove these records before proceeding
+mask = merged_df['Demand'] == '1-0-1900 0:00'
+imp_df = merged_df[-mask]
+
+#Make Demand back to a float character
+imp_df['Demand'] = imp_df['Demand'].astype(float)
+
+#drop null values
+imp_df = imp_df.dropna()
+
+imp_df = imp_df.drop(columns=['drop?', 'Day_Count'])
+
+#save clean data to csv
+imp_df.to_csv('clean_data.csv', index=True)
